@@ -1,31 +1,31 @@
 #!/usr/bin/env python
 
-import logging
 import sys
 import os
 import argparse
 import re
-import pdb
 import usaddress
+import csv
+
 from pygeocoder import Geocoder
 from pygeolib import GeocoderError
-import urllib.parse
 
 # CLI Arguments
-parser = argparse.ArgumentParser(description='Parse an address list into LLS format CSV')
+parser = argparse.ArgumentParser(description='Parse addresses CSV')
 parser.add_argument('--address_file', action='store', dest='address_file',
-                    help='The text file containing the addresses to parse', required='True')
+                    help='The text file containing the addresses to parse',
+                    required='True')
 args = parser.parse_args()
 
 # Required Env Var
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+API_KEY = os.getenv('GOOGLE_API_KEY')
 
-if GOOGLE_API_KEY is None:
-    print(f"Error: 'GOOGLE_API_KEY' required in environment. Please export and try again.")
+if API_KEY is None:
+    print(f"Error: 'GOOGLE_API_KEY' required in environment. Please export and\
+           try again.")
     sys.exit(1)
 
-# Logging
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+# METHODS
 
 
 def addr_chunks_from_file(addr_file):
@@ -34,26 +34,6 @@ def addr_chunks_from_file(addr_file):
     addr_chunks = re.sub(r'\n\s*\n', '\n\n', file_contents).split("\n\n")
 
     return addr_chunks
-
-
-def url_encode(addr):
-    safe_string = urllib.parse.quote_plus(addr)
-
-    return safe_string
-
-
-def valid_address(addr):
-    address = Geocoder(GOOGLE_API_KEY).geocode(urllib.parse.quote_plus(addr))
-    status = address.valid_address
-
-    return status
-
-
-def normalize_address(addr):
-    address = Geocoder(GOOGLE_API_KEY).geocode(urllib.parse.quote_plus(addr))
-    normalized_addr = address.formatted_address
-
-    return normalized_addr
 
 
 def extract_mailing_address(addr):
@@ -65,35 +45,33 @@ def extract_mailing_address(addr):
         return {}
 
 
-def validate_address(self, mail_address):
-    return None
-
-
 def parse_addrs(addr_chunks):
     for chunk in addr_chunks:
         chunk_split = chunk.splitlines()
         name = chunk_split[0]
         addr = ' '.join(chunk_split[1:])
-        try:
-            address = Geocoder(GOOGLE_API_KEY).geocode(addr)
-        except GeocoderError:
-            print(f"The address entered could not be geocoded")
-            sys.exit(1)
-
-        print(address)
-        # parsed_addr = extract_mailing_address(addr)
-        valid = address.valid_address
-        if valid:
-            normalized_address = address.formatted_address
+        if addr:
+            try:
+                address = Geocoder(API_KEY).geocode(addr)
+                normalized_address = extract_mailing_address(
+                    address.formatted_address)
+            except GeocoderError:
+                normalized_address = "Invalid"
         else:
-            normalized_address = "Invalid address."
+            normalized_address = None
 
-        print(f"NAME: {name}")
-        print(f"ADDR: {normalized_address}")
-        print('')
-        sys.exit(0)
+        # TODO: parse normalized address into hash
+        data = [name, normalized_address[0]['Address']]
+        with open('countries.csv', 'w', encoding='UTF8') as f:
+            writer = csv.writer(f)
+            writer.writerow(header)
+            writer.writerow(data)
 
+
+# EXECUTE
+
+header = ['First Name (s) **', 'Last Name **', 'Street Address **',
+          'Address Line 2 **', 'City **', 'State **', 'Zip **', 'Country **']
 
 Addr_Chunks = addr_chunks_from_file(args.address_file)
-
 parse_addrs(Addr_Chunks)
