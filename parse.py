@@ -1,14 +1,18 @@
 #!/usr/bin/env python
 
+# TODO: Parsing names better.
+# ie "Joe and Rachel Smith", or "Joe Smith and Rachel Black"
+# Need to handle both varieties along with "The Smiths"
+
 import sys
 import os
 import argparse
 import re
 import usaddress
 import csvkit
-import pdb
 
 from collections import OrderedDict
+from nameparser import HumanName
 from pygeocoder import Geocoder
 from pygeolib import GeocoderError
 
@@ -54,7 +58,7 @@ def parse_addrs(addr_chunks, csv_header):
     all_addresses = []
     for chunk in addr_chunks:
         chunk_split = chunk.splitlines()
-        name = chunk_split[0]
+        name = HumanName(chunk_split[0])
         addr = ' '.join(chunk_split[1:])
         if addr:
             try:
@@ -70,11 +74,13 @@ def parse_addrs(addr_chunks, csv_header):
             addr_type = normalized_address[1]
             if addr_type == 'Street Address':
                 addr_copy = normalized_address[0].copy()
-                addr_copy['Name'] = name
+                addr_copy['FirstName'] = name.first.capitalize()
+                addr_copy['LastName'] = name.last.capitalize()
                 all_addresses.append(addr_copy)
         else:
             nd = {}
-            nd['Name'] = name
+            nd['FirstName'] = name.first.capitalize()
+            nd['LastName'] = name.last.capitalize()
             all_addresses.append(nd)
 
     return all_addresses
@@ -95,7 +101,8 @@ all_rows = []
 
 for address in full_list:
     od = OrderedDict()
-    od['Last Name **'] = address['Name']
+    od['First Name (s) **'] = address.get('FirstName')
+    od['Last Name **'] = address.get('LastName')
     street_address = []
     for k, v in address.items():
         keys = ['AddressNumber', 'StreetNamePreDirectional', 'StreetName',
