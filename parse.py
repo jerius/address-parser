@@ -17,13 +17,16 @@ parser = argparse.ArgumentParser(description='Parse addresses CSV')
 parser.add_argument('--address_file', action='store', dest='address_file',
                     help='The text file containing the addresses to parse',
                     required='True')
+parser.add_argument('--team_member', action='store', dest='team_member',
+                    help='The team member associated with these addresses',
+                    required='True')
 args = parser.parse_args()
 
 # Required Env Var
 API_KEY = os.getenv('GOOGLE_API_KEY')
 
 if API_KEY is None:
-    print(f"Error: 'GOOGLE_API_KEY' required in environment. Please export and try again.")
+    print("Error: 'GOOGLE_API_KEY' required in environment. Please export and try again.")
     sys.exit(1)
 
 # METHODS
@@ -32,6 +35,7 @@ if API_KEY is None:
 def addr_chunks_from_file(addr_file):
     file = open(addr_file)
     file_contents = file.read()
+    file.close
     addr_chunks = re.sub(r'\n\s*\n', '\n\n', file_contents).split("\n\n")
 
     return addr_chunks
@@ -71,7 +75,6 @@ def parse_addrs(addr_chunks, csv_header):
         else:
             nd = {}
             nd['Name'] = name
-            nd['AddressNumber'] = 'n/a'
             all_addresses.append(nd)
 
     return all_addresses
@@ -79,23 +82,11 @@ def parse_addrs(addr_chunks, csv_header):
 
 # EXECUTE
 
-# csv_header = ['First Name (s) **', 'Last Name **', 'Street Address **',
-#               'Address Line 2 **', 'City **', 'State **', 'Zip **',
-#               'Country **']
+csv_header = ['First Name (s) **', 'Last Name **', 'Street Address **',
+              'Address Line 2 **', 'City **', 'State **', 'Zip **',
+              'Country **']
 
-csv_header = ['Name', 'StreetAddress', 'City', 'State', 'Zip', 'Country']
-
-addr_field_list = ['AddressNumber', 'AddressNumberPrefix',
-              'AddressNumberSuffix', 'BuildingName', 'CornerOf',
-              'IntersectionSeparator', 'LandmarkName', 'NotAddress',
-              'OccupancyType', 'OccupancyIdentifier', 'PlaceName',
-              'Recipient', 'StateName', 'StreetName',
-              'StreetNamePreDirectional', 'StreetNamePreModifier',
-              'StreetNamePreType', 'StreetNamePostDirectional',
-              'StreetNamePostModifier', 'StreetNamePostType',
-              'SubaddressIdentifier', 'SubaddressType', 'USPSBoxGroupID',
-              'USPSBoxGroupType', 'USPSBoxID', 'USPSBoxType', 'ZipCode',
-              'CountryName']
+member = args.team_member.replace(" ", "_").lower()
 
 Addr_Chunks = addr_chunks_from_file(args.address_file)
 full_list = parse_addrs(Addr_Chunks, csv_header)
@@ -104,21 +95,21 @@ all_rows = []
 
 for address in full_list:
     od = OrderedDict()
-    od['Name'] = address['Name']
+    od['Last Name **'] = address['Name']
     street_address = []
     for k, v in address.items():
         keys = ['AddressNumber', 'StreetNamePreDirectional', 'StreetName',
                 'StreetNamePostType', 'OccupancyIdentifier']
         if k in keys:
             street_address.append(v)
-    od['StreetAddress'] = ' '.join(street_address)
-    od['City'] = address.get('PlaceName')
-    od['State'] = address.get('StateName')
-    od['Zip'] = address.get('ZipCode')
-    od['Country'] = address.get('CountryName')
+    od['Street Address **'] = ' '.join(street_address)
+    od['City **'] = address.get('PlaceName')
+    od['State **'] = address.get('StateName')
+    od['Zip **'] = address.get('ZipCode')
+    od['Country **'] = address.get('CountryName')
     all_rows.append(od)
 
-with open('test.csv', 'w') as outfile:
+with open(member + '.csv', 'w') as outfile:
     writer = csvkit.DictWriter(outfile, csv_header)
     writer.writeheader()
     writer.writerows(all_rows)
