@@ -5,8 +5,10 @@ import os
 import argparse
 import re
 import usaddress
-import csv
+import csvkit
+import pdb
 
+from collections import OrderedDict
 from pygeocoder import Geocoder
 from pygeolib import GeocoderError
 
@@ -21,8 +23,7 @@ args = parser.parse_args()
 API_KEY = os.getenv('GOOGLE_API_KEY')
 
 if API_KEY is None:
-    print(f"Error: 'GOOGLE_API_KEY' required in environment. Please export and\
-           try again.")
+    print(f"Error: 'GOOGLE_API_KEY' required in environment. Please export and try again.")
     sys.exit(1)
 
 # METHODS
@@ -45,7 +46,8 @@ def extract_mailing_address(addr):
         return {}
 
 
-def parse_addrs(addr_chunks):
+def parse_addrs(addr_chunks, csv_header):
+    all_addresses = []
     for chunk in addr_chunks:
         chunk_split = chunk.splitlines()
         name = chunk_split[0]
@@ -60,18 +62,63 @@ def parse_addrs(addr_chunks):
         else:
             normalized_address = None
 
-        # TODO: parse normalized address into hash
-        data = [name, normalized_address[0]['Address']]
-        with open('countries.csv', 'w', encoding='UTF8') as f:
-            writer = csv.writer(f)
-            writer.writerow(header)
-            writer.writerow(data)
+        if normalized_address:
+            addr_type = normalized_address[1]
+            if addr_type == 'Street Address':
+                addr_copy = normalized_address[0].copy()
+                addr_copy['Name'] = name
+                all_addresses.append(addr_copy)
+        else:
+            nd = {}
+            nd['Name'] = name
+            nd['AddressNumber'] = 'n/a'
+            all_addresses.append(nd)
+
+    return all_addresses
 
 
 # EXECUTE
 
-header = ['First Name (s) **', 'Last Name **', 'Street Address **',
-          'Address Line 2 **', 'City **', 'State **', 'Zip **', 'Country **']
+# csv_header = ['First Name (s) **', 'Last Name **', 'Street Address **',
+#               'Address Line 2 **', 'City **', 'State **', 'Zip **',
+#               'Country **']
+
+csv_header = ['Name', 'StreetAddress', 'City', 'State', 'Zip', 'Country']
+
+addr_field_list = ['AddressNumber', 'AddressNumberPrefix',
+              'AddressNumberSuffix', 'BuildingName', 'CornerOf',
+              'IntersectionSeparator', 'LandmarkName', 'NotAddress',
+              'OccupancyType', 'OccupancyIdentifier', 'PlaceName',
+              'Recipient', 'StateName', 'StreetName',
+              'StreetNamePreDirectional', 'StreetNamePreModifier',
+              'StreetNamePreType', 'StreetNamePostDirectional',
+              'StreetNamePostModifier', 'StreetNamePostType',
+              'SubaddressIdentifier', 'SubaddressType', 'USPSBoxGroupID',
+              'USPSBoxGroupType', 'USPSBoxID', 'USPSBoxType', 'ZipCode',
+              'CountryName']
 
 Addr_Chunks = addr_chunks_from_file(args.address_file)
-parse_addrs(Addr_Chunks)
+full_list = parse_addrs(Addr_Chunks, csv_header)
+
+all_rows = []
+
+for address in full_list:
+    od = OrderedDict()
+    od['Name'] = address['Name']
+    street_address = []
+    for k, v in address.items():
+        keys = ['AddressNumber', 'StreetNamePreDirectional', 'StreetName',
+                'StreetNamePostType', 'OccupancyIdentifier']
+        if k in keys:
+            street_address.append(v)
+    od['StreetAddress'] = ' '.join(street_address)
+    od['City'] = address.get('PlaceName')
+    od['State'] = address.get('StateName')
+    od['Zip'] = address.get('ZipCode')
+    od['Country'] = address.get('CountryName')
+    all_rows.append(od)
+
+with open('test.csv', 'w') as outfile:
+    writer = csvkit.DictWriter(outfile, csv_header)
+    writer.writeheader()
+    writer.writerows(all_rows)
