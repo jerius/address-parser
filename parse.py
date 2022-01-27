@@ -10,6 +10,7 @@ import argparse
 import re
 import usaddress
 import csvkit
+import pdb
 
 from collections import OrderedDict
 from nameparser import HumanName
@@ -74,7 +75,7 @@ def parse_addrs(addr_chunks, csv_header):
             addr_type = normalized_address[1]
             if addr_type == 'Street Address':
                 addr_copy = normalized_address[0].copy()
-                addr_copy['FirstName'] = name.first.capitalize()
+                addr_copy['FirstName'] = name.first
                 addr_copy['LastName'] = name.last.capitalize()
                 all_addresses.append(addr_copy)
         else:
